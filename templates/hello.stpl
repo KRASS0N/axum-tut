@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>SEX</title>
+	<link rel="stylesheet" href=<%= css %>>
+</head>
+<body>
+	<h1>Deez nuts!</h1>
+	<h2><%= addr %></h2>
+	<h1>Nice IP, <a href="https://youtu.be/_J10WRzLdO4?t=33" target="_blank">fuckface</a>!</h1>
+	<a href="login">
+		<button>Login</button>
+	</form>
+</body>

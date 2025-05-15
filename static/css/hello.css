@@ -1,0 +1,13 @@
+* {
+	background-color: LemonChiffon;
+}
+h1 {
+	color: green;
+}
+button:focus {
+	background-color: gray;
+}
+#suckmynuts input{
+	display: block;
+	margin-bottom: 1em;
+}
