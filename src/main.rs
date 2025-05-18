@@ -16,7 +16,7 @@ use sqlx::{
     query,
 };
 use std::{env, net::SocketAddr, process::Command};
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, task};
 use tower_http::services::ServeDir;
 
 #[derive(Clone)]
@@ -133,10 +133,15 @@ async fn verify_login(State(state): State<SiteState>, Form(login): Form<Login>) 
         return Html(loginfail.render_once().unwrap());
     };
 
-    let password_hash = PasswordHash::new(&user.password).expect("Invalid password hash");
     let verifier = Argon2::default();
+    let verify_result = task::spawn_blocking(move || {
+        let password_hash = PasswordHash::new(&user.password).expect("Invalid password hash");
+        verifier.verify_password(login.password.as_bytes(), &password_hash)
+    })
+    .await
+    .unwrap();
 
-    let Ok(_) = verifier.verify_password(login.password.as_bytes(), &password_hash) else {
+    let Ok(_) = verify_result else {
         return Html(loginfail.render_once().unwrap());
     };
 
@@ -161,15 +166,20 @@ async fn verify_signup(State(state): State<SiteState>, Form(signup): Form<SignUp
     } else {
         let salt = SaltString::generate(&mut OsRng);
         let hasher = Argon2::default();
-        let hash = hasher
-            .hash_password(signup.password.as_bytes(), &salt)
-            .unwrap();
+        let hash = task::spawn_blocking(move || {
+            hasher
+                .hash_password(signup.password.as_bytes(), &salt)
+                .expect("Password hash failed!")
+                .to_string()
+        })
+        .await
+        .unwrap();
 
         let result = query!(
             r#"INSERT INTO Users (Username, Password)
             VALUES ($1, $2)"#,
             signup.username,
-            hash.to_string()
+            hash
         )
         .execute(&state.pool)
         .await;
