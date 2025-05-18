@@ -16,8 +16,14 @@ use sqlx::{
     query,
 };
 use std::{env, net::SocketAddr, process::Command};
-use tokio::{net::TcpListener, task};
+use tokio::{
+    net::TcpListener,
+    signal,
+    task::{self, AbortHandle},
+};
 use tower_http::services::ServeDir;
+use tower_sessions::{session_store::ExpiredDeletion, Expiry, Session, SessionManagerLayer};
+use tower_sessions_sqlx_store::PostgresStore;
 
 #[derive(Clone)]
 struct SiteState {
@@ -77,12 +83,24 @@ async fn main() -> anyhow::Result<()> {
     println!("Listening on address {}", addr.to_string());
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL unset!");
-    let pool = PgPoolOptions::new()
+    let state_pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&database_url)
         .await?;
+    let state = SiteState { pool: state_pool };
 
-    let state = SiteState { pool: pool };
+    let session_pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await?;
+    let session_store = PostgresStore::new(session_pool);
+    session_store.migrate().await?;
+
+    let deletion_task = tokio::task::spawn(
+        session_store
+            .clone()
+            .continuously_delete_expired(tokio::time::Duration::from_secs(60)),
+    );
 
     let site = Router::new()
         .route("/", get(index))
