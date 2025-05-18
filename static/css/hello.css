@@ -1,13 +1,45 @@
 * {
-	background-color: LemonChiffon;
+	background-color: Beige;
 }
 h1 {
 	color: green;
 }
+a.button {
+	  padding: 2px 6px;
+    border: 2px outset;
+    text-decoration: none;
+		color: black;
+		font-size: 12px;
+		border-color: black;
+		background-color: LemonChiffon;
+}
+a.button:focus {
+	background-color: gray;
+}
+button {
+	background-color: LemonChiffon;
+}
 button:focus {
 	background-color: gray;
 }
-#suckmynuts input{
+form {
+	margin-bottom: 1em;
+}
+input[type=text], input[type=password] {
+	background-color: white;
+}
+.linkbutton a {
+	text-decoration: none;
+}
+.suckmynuts input{
 	display: block;
+	margin-bottom: 1em;
+}
+.error {
+	color: red;
+	margin-bottom: 1em;
+}
+.success {
+	color: green;
 	margin-bottom: 1em;
 }
