@@ -5,13 +5,15 @@ h1 {
 	color: green;
 }
 a.button {
-	  padding: 2px 6px;
-    border: 2px outset;
-    text-decoration: none;
-		color: black;
-		font-size: 12px;
-		border-color: black;
-		background-color: LemonChiffon;
+	display: inline-block;
+	padding: 2px 6px;
+	border: 2px outset;
+	text-decoration: none;
+	color: black;
+	font-size: 12px;
+	border-color: black;
+	background-color: LemonChiffon;
+	margin-bottom: 1em;
 }
 a.button:focus {
 	background-color: gray;
@@ -27,9 +29,6 @@ form {
 }
 input[type=text], input[type=password] {
 	background-color: white;
-}
-.linkbutton a {
-	text-decoration: none;
 }
 .suckmynuts input{
 	display: block;

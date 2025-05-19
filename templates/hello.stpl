@@ -10,4 +10,7 @@
 	<h1>Nice IP, <a href="https://youtu.be/_J10WRzLdO4?t=33" target="_blank">fuckface</a>!</h1>
 	<a href="/login" class="button">Login</a>
 	<a href="/signup" class="button">Sign Up</a>
+	<div>
+		<a href="/devlog1">Devlog 1</a>
+	</div>
 </body>

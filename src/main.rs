@@ -16,6 +16,7 @@ use sqlx::{
     query,
 };
 use std::{env, net::SocketAddr, process::Command};
+use time::Duration;
 use tokio::{
     net::TcpListener,
     signal,
@@ -57,6 +58,10 @@ struct SignUpTemplate<'a> {
 #[derive(TemplateSimple)]
 #[template(path = "../templates/signup_success.stpl")]
 struct SignUpSuccessTemplate {}
+
+#[derive(TemplateSimple)]
+#[template(path = "../templates/devlog1.stpl")]
+struct Devlog1Template {}
 
 #[derive(Deserialize)]
 struct Login {
@@ -102,12 +107,16 @@ async fn main() -> anyhow::Result<()> {
             .continuously_delete_expired(tokio::time::Duration::from_secs(60)),
     );
 
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_expiry(Expiry::OnInactivity(Duration::seconds(10)));
+
     let site = Router::new()
         .route("/", get(index))
         .route("/login", get(login))
         .route("/login", post(verify_login))
         .route("/signup", get(signup))
         .route("/signup", post(verify_signup))
+        .route("/devlog1", get(devlog1))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(state);
 
@@ -212,4 +221,9 @@ async fn verify_signup(State(state): State<SiteState>, Form(signup): Form<SignUp
         let ctx = SignUpSuccessTemplate {};
         Html(ctx.render_once().unwrap())
     }
+}
+
+async fn devlog1() -> Html<String> {
+    let ctx = Devlog1Template {};
+    Html(ctx.render_once().unwrap())
 }
