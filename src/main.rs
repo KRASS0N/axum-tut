@@ -5,7 +5,7 @@ use argon2::{
 use axum::{
     extract::ConnectInfo,
     extract::State,
-    response::{Html, IntoResponse},
+    response::{Html, IntoResponse, Redirect},
     routing::{get, post},
     Form, Router,
 };
@@ -109,11 +109,11 @@ async fn main() -> anyhow::Result<()> {
     let deletion_task = tokio::task::spawn(
         session_store
             .clone()
-            .continuously_delete_expired(tokio::time::Duration::from_secs(60)),
+            .continuously_delete_expired(tokio::time::Duration::from_secs(1 * 60 * 60)), //1 hour
     );
 
     let session_layer = SessionManagerLayer::new(session_store)
-        .with_expiry(Expiry::OnInactivity(Duration::seconds(10)));
+        .with_expiry(Expiry::OnInactivity(Duration::hours(1)));
 
     let site = Router::new()
         .route("/", get(index))
@@ -121,6 +121,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/login", post(verify_login))
         .route("/signup", get(signup))
         .route("/signup", post(verify_signup))
+        .route("/logout", get(logout_get))
+        .route("/logout", post(logout))
         .route("/devlog1", get(devlog1))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(state)
@@ -210,6 +212,16 @@ async fn verify_login(
         username: login.username,
     };
     Html(ctx.render_once().unwrap())
+}
+
+async fn logout(session: Session) -> impl IntoResponse {
+    session.remove::<String>(USER_KEY).await.unwrap();
+    Redirect::to("/")
+}
+
+// stops people from using links to log people out
+async fn logout_get() -> impl IntoResponse {
+    Redirect::to("/")
 }
 
 async fn signup() -> impl IntoResponse {
