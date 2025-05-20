@@ -5,12 +5,12 @@ use argon2::{
 use axum::{
     extract::ConnectInfo,
     extract::State,
-    response::Html,
+    response::{Html, IntoResponse},
     routing::{get, post},
     Form, Router,
 };
 use sailfish::TemplateSimple;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::{
     postgres::{PgPool, PgPoolOptions},
     query,
@@ -34,6 +34,7 @@ struct SiteState {
 #[derive(TemplateSimple)]
 #[template(path = "../templates/hello.stpl")]
 struct HelloTemplate {
+    username: String,
     addr: String,
 }
 
@@ -75,6 +76,10 @@ struct SignUp {
     password: String,
     password2: String,
 }
+
+#[derive(Serialize, Deserialize, Default)]
+struct User(String);
+const USER_KEY: &str = "username";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -118,32 +123,59 @@ async fn main() -> anyhow::Result<()> {
         .route("/signup", post(verify_signup))
         .route("/devlog1", get(devlog1))
         .nest_service("/static", ServeDir::new("static"))
-        .with_state(state);
+        .with_state(state)
+        .layer(session_layer);
 
     axum::serve(
         listener,
         site.into_make_service_with_connect_info::<SocketAddr>(),
     )
+    .with_graceful_shutdown(shutdown_signal(deletion_task.abort_handle()))
     .await?;
 
     Ok(())
 }
 
-async fn index(ConnectInfo(addr): ConnectInfo<SocketAddr>) -> Html<String> {
+async fn shutdown_signal(deletion_task_abort_handle: AbortHandle) {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    tokio::select! {
+        _ = ctrl_c => { deletion_task_abort_handle.abort() },
+        _ = terminate => { deletion_task_abort_handle.abort() },
+    }
+}
+
+async fn index(session: Session, ConnectInfo(addr): ConnectInfo<SocketAddr>) -> impl IntoResponse {
+    let user: User = session.get(USER_KEY).await.unwrap().unwrap_or_default();
     let ctx = HelloTemplate {
+        username: user.0,
         addr: addr.to_string(),
     };
 
     Html(ctx.render_once().unwrap())
 }
 
-async fn login() -> Html<String> {
+async fn login() -> impl IntoResponse {
     let ctx = LoginTemplate { msg: "" };
 
     Html(ctx.render_once().unwrap())
 }
 
-async fn verify_login(State(state): State<SiteState>, Form(login): Form<Login>) -> Html<String> {
+async fn verify_login(
+    session: Session,
+    State(state): State<SiteState>,
+    Form(login): Form<Login>,
+) -> impl IntoResponse {
     let loginfail = LoginTemplate {
         msg: "Login Failed!",
     };
@@ -172,19 +204,24 @@ async fn verify_login(State(state): State<SiteState>, Form(login): Form<Login>) 
         return Html(loginfail.render_once().unwrap());
     };
 
+    session.insert(USER_KEY, &login.username).await.unwrap();
+
     let ctx = LoginSuccessTemplate {
         username: login.username,
     };
     Html(ctx.render_once().unwrap())
 }
 
-async fn signup() -> Html<String> {
+async fn signup() -> impl IntoResponse {
     let ctx = SignUpTemplate { msg: "" };
 
     Html(ctx.render_once().unwrap())
 }
 
-async fn verify_signup(State(state): State<SiteState>, Form(signup): Form<SignUp>) -> Html<String> {
+async fn verify_signup(
+    State(state): State<SiteState>,
+    Form(signup): Form<SignUp>,
+) -> impl IntoResponse {
     if signup.password != signup.password2 {
         let ctx = SignUpTemplate {
             msg: "Passwords must match!",
@@ -223,7 +260,7 @@ async fn verify_signup(State(state): State<SiteState>, Form(signup): Form<SignUp
     }
 }
 
-async fn devlog1() -> Html<String> {
+async fn devlog1() -> impl IntoResponse {
     let ctx = Devlog1Template {};
     Html(ctx.render_once().unwrap())
 }

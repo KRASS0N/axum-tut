@@ -5,7 +5,11 @@
 	<% include!("header.stpl"); %>
 </head>
 <body>
-	<h1>Deez nuts!</h1>
+    <% if !username.is_empty() { %>
+        <h1>Hello, <%= username %>!</h1>
+    <% } else { %>
+        <h1>Deez nuts!</h1>
+    <% } %>
 	<h2><%= addr %></h2>
 	<h1>Nice IP, <a href="https://youtu.be/_J10WRzLdO4?t=33" target="_blank">fuckface</a>!</h1>
 	<a href="/login" class="button">Login</a>
