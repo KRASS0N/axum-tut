@@ -8,13 +8,14 @@ use axum::{
     routing::{get, post},
     Form, Router,
 };
+use image::{EncodableLayout, ImageReader};
 use sailfish::TemplateSimple;
 use serde::{Deserialize, Serialize};
 use sqlx::{
     postgres::{PgPool, PgPoolOptions},
     query,
 };
-use std::{env, fs::write, net::SocketAddr, process::Command};
+use std::{env, fs::write, io::Cursor, net::SocketAddr, process::Command};
 use time::Duration;
 use tokio::{
     net::TcpListener,
@@ -24,6 +25,7 @@ use tokio::{
 use tower_http::services::ServeDir;
 use tower_sessions::{session_store::ExpiredDeletion, Expiry, Session, SessionManagerLayer};
 use tower_sessions_sqlx_store::PostgresStore;
+use webp::{Encoder, WebPMemory};
 
 #[derive(Clone)]
 struct SiteState {
@@ -85,7 +87,7 @@ struct Avatar(String);
 const AVATAR_KEY: &str = "avatar";
 
 async fn get_avatar(username: &str) -> String {
-    format!("static/avatars/{}.png", username)
+    format!("static/avatars/{}.webp", username)
 }
 
 #[tokio::main]
@@ -113,7 +115,7 @@ async fn main() -> anyhow::Result<()> {
     let session_store = PostgresStore::new(session_pool);
     session_store.migrate().await?;
 
-    let deletion_task = tokio::task::spawn(
+    let deletion_task = task::spawn(
         session_store
             .clone()
             .continuously_delete_expired(tokio::time::Duration::from_secs(1 * 60 * 60)), //1 hour
@@ -285,35 +287,56 @@ async fn avatar() -> impl IntoResponse {
 }
 
 async fn change_avatar(session: Session, mut multipart: Multipart) -> impl IntoResponse {
-    if let Some(field) = multipart.next_field().await.unwrap() {
-        let data_try = field.bytes().await;
-        let Ok(data) = data_try else {
-            let ctx = AvatarTemplate {
-                msg: "File is too large!",
-            };
-            return Html(ctx.render_once().unwrap());
-        };
-
-        let user: User = session.get(USER_KEY).await.unwrap().unwrap_or_default();
-        let avatar_path = get_avatar(&user.0).await;
-
-        let Ok(_) = write(avatar_path, data) else {
-            let ctx = AvatarTemplate {
-                msg: "Failed to write file!",
-            };
-            return Html(ctx.render_once().unwrap());
-        };
-
+    let Some(field) = multipart.next_field().await.unwrap() else {
         let ctx = AvatarTemplate {
-            msg: "Avatar change success!",
+            msg: "Empty Request",
         };
-        Html(ctx.render_once().unwrap())
-    } else {
+        return Html(ctx.render_once().unwrap());
+    };
+    let data_try = field.bytes().await;
+    let Ok(data) = data_try else {
         let ctx = AvatarTemplate {
-            msg: "Empty request!",
+            msg: "File is too large!",
         };
-        Html(ctx.render_once().unwrap())
-    }
+        return Html(ctx.render_once().unwrap());
+    };
+
+    let Ok(image) = ImageReader::new(Cursor::new(data))
+        .with_guessed_format()
+        .unwrap()
+        .decode()
+    else {
+        let ctx = AvatarTemplate {
+            msg: "Unsupported file format!",
+        };
+        return Html(ctx.render_once().unwrap());
+    };
+
+    let user: User = session.get(USER_KEY).await.unwrap().unwrap_or_default();
+    let avatar_path = get_avatar(&user.0).await;
+
+    let webp_bytes = task::spawn_blocking(move || {
+        let encoder: Encoder = Encoder::from_image(&image).unwrap();
+        let encoded_webp: WebPMemory = encoder.encode(65.0);
+        let webp_bytes = encoded_webp.as_bytes();
+        webp_bytes.to_vec()
+    })
+    .await
+    .unwrap();
+
+    let Ok(_) = write(&avatar_path, webp_bytes) else {
+        let ctx = AvatarTemplate {
+            msg: "Failed to write file!",
+        };
+        return Html(ctx.render_once().unwrap());
+    };
+
+    session.insert(AVATAR_KEY, &avatar_path).await.unwrap();
+
+    let ctx = AvatarTemplate {
+        msg: "Avatar change success!",
+    };
+    Html(ctx.render_once().unwrap())
 }
 
 async fn devlog1() -> impl IntoResponse {

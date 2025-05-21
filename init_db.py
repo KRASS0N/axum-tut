@@ -1,6 +1,7 @@
-import psycopg2
+from pathlib import Path
 from urllib.parse import urlparse
 import os
+import psycopg2
 
 
 def main():
@@ -26,6 +27,8 @@ def main():
     conn.commit()
     conn.close()
     cursor.close()
+
+    Path("static/avatars").mkdir(exist_ok=True)
 
 
 if __name__ == "__main__":
