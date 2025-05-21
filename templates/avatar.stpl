@@ -14,7 +14,7 @@
 	<div class="suckmynuts">
 		<form method="post" enctype="multipart/form-data" action="avatar">
 			<label for="avatar">Avatar</label>
-			<input type="file" name="avatar" />
+			<input type="file" name="avatar" required/>
 			<button class="action" type="submit">Submit</button>
 		</form>
 	</div>

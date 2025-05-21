@@ -14,7 +14,7 @@ use sqlx::{
     postgres::{PgPool, PgPoolOptions},
     query,
 };
-use std::{env, net::SocketAddr, process::Command};
+use std::{env, fs::write, net::SocketAddr, process::Command};
 use time::Duration;
 use tokio::{
     net::TcpListener,
@@ -79,6 +79,14 @@ struct SignUp {
 #[derive(Serialize, Deserialize, Default)]
 struct User(String);
 const USER_KEY: &str = "username";
+
+#[derive(Serialize, Deserialize, Default)]
+struct Avatar(String);
+const AVATAR_KEY: &str = "avatar";
+
+async fn get_avatar(username: &str) -> String {
+    format!("static/avatars/{}.png", username)
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -276,12 +284,8 @@ async fn avatar() -> impl IntoResponse {
     Html(ctx.render_once().unwrap())
 }
 
-async fn change_avatar(
-    State(state): State<SiteState>,
-    mut multipart: Multipart,
-) -> impl IntoResponse {
+async fn change_avatar(session: Session, mut multipart: Multipart) -> impl IntoResponse {
     if let Some(field) = multipart.next_field().await.unwrap() {
-        let name = field.name().unwrap().to_string();
         let data_try = field.bytes().await;
         let Ok(data) = data_try else {
             let ctx = AvatarTemplate {
@@ -290,8 +294,18 @@ async fn change_avatar(
             return Html(ctx.render_once().unwrap());
         };
 
+        let user: User = session.get(USER_KEY).await.unwrap().unwrap_or_default();
+        let avatar_path = get_avatar(&user.0).await;
+
+        let Ok(_) = write(avatar_path, data) else {
+            let ctx = AvatarTemplate {
+                msg: "Failed to write file!",
+            };
+            return Html(ctx.render_once().unwrap());
+        };
+
         let ctx = AvatarTemplate {
-            msg: &format!("Length of {} is {} bytes\n", name, data.len()),
+            msg: "Avatar change success!",
         };
         Html(ctx.render_once().unwrap())
     } else {
