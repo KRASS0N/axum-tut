@@ -36,6 +36,7 @@ struct SiteState {
 #[template(path = "../templates/hello.stpl")]
 struct HelloTemplate {
     username: String,
+    avatar: String,
     addr: String,
 }
 
@@ -171,8 +172,14 @@ async fn shutdown_signal(deletion_task_abort_handle: AbortHandle) {
 
 async fn index(session: Session, ConnectInfo(addr): ConnectInfo<SocketAddr>) -> impl IntoResponse {
     let user: User = session.get(USER_KEY).await.unwrap().unwrap_or_default();
+    let avatar_cookie: Avatar = session.get(AVATAR_KEY).await.unwrap().unwrap_or_default();
+    let avatar = match avatar_cookie.0.is_empty() {
+        true => String::from("static/default_avatar.webp"),
+        false => avatar_cookie.0,
+    };
     let ctx = HelloTemplate {
         username: user.0,
+        avatar: avatar,
         addr: addr.to_string(),
     };
 
@@ -287,22 +294,30 @@ async fn avatar() -> impl IntoResponse {
     Html(ctx.render_once().unwrap())
 }
 
-#[axum::debug_handler]
 async fn change_avatar(session: Session, mut multipart: Multipart) -> impl IntoResponse {
     let emptyfile = AvatarTemplate { msg: "Empty file!" };
     let Ok(result) = multipart.next_field().await else {
         return Html(emptyfile.render_once().unwrap());
     };
-    let Some(field) = result else {
+    let Some(mut field) = result else {
         return Html(emptyfile.render_once().unwrap());
     };
-    let data_try = field.bytes().await;
-    let Ok(data) = data_try else {
-        let ctx = AvatarTemplate {
-            msg: "File is too large!",
-        };
-        return Html(ctx.render_once().unwrap());
-    };
+
+    let mut data: Vec<u8> = Vec::new();
+
+    loop {
+        match field.chunk().await {
+            Ok(Some(chunk)) => data.extend_from_slice(chunk.as_bytes()),
+            Ok(None) => break,
+            Err(_) => {
+                let ctx = AvatarTemplate {
+                    msg: "File is too big!",
+                };
+                return Html(ctx.render_once().unwrap());
+            }
+        }
+    }
+
     let false = data.is_empty() else {
         return Html(emptyfile.render_once().unwrap());
     };
