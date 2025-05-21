@@ -4,7 +4,7 @@
 h1 {
 	color: green;
 }
-a.button {
+a.button, input[type="file"]::file-selector-button {
 	display: inline-block;
 	padding: 2px 6px;
 	border: 2px outset;
@@ -13,6 +13,8 @@ a.button {
 	font-size: 12px;
 	border-color: black;
 	background-color: LemonChiffon;
+}
+a.button {
 	margin-bottom: 1em;
 }
 a.button:focus {

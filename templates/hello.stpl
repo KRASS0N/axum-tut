@@ -16,6 +16,7 @@
 		<a href="login" class="button">Login</a>
 		<a href="signup" class="button">Sign Up</a>
 	<% } else { %>
+		<a href="avatar" class="button">Change Avatar</a>
 		<form method="post" action="logout">
 			<button type="submit">Logout</button>
 		</form>

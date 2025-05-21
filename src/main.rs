@@ -3,8 +3,7 @@ use argon2::{
     Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
 };
 use axum::{
-    extract::ConnectInfo,
-    extract::State,
+    extract::{ConnectInfo, Multipart, State},
     response::{Html, IntoResponse, Redirect},
     routing::{get, post},
     Form, Router,
@@ -45,12 +44,6 @@ struct LoginTemplate<'a> {
 }
 
 #[derive(TemplateSimple)]
-#[template(path = "../templates/login_success.stpl")]
-struct LoginSuccessTemplate {
-    username: String,
-}
-
-#[derive(TemplateSimple)]
 #[template(path = "../templates/signup.stpl")]
 struct SignUpTemplate<'a> {
     msg: &'a str,
@@ -59,6 +52,12 @@ struct SignUpTemplate<'a> {
 #[derive(TemplateSimple)]
 #[template(path = "../templates/signup_success.stpl")]
 struct SignUpSuccessTemplate {}
+
+#[derive(TemplateSimple)]
+#[template(path = "../templates/avatar.stpl")]
+struct AvatarTemplate<'a> {
+    msg: &'a str,
+}
 
 #[derive(TemplateSimple)]
 #[template(path = "../templates/devlog1.stpl")]
@@ -123,6 +122,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/signup", post(verify_signup))
         .route("/logout", get(logout_get))
         .route("/logout", post(logout))
+        .route("/avatar", get(avatar))
+        .route("/avatar", post(change_avatar))
         .route("/devlog1", get(devlog1))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(state)
@@ -191,7 +192,7 @@ async fn verify_login(
     .await;
 
     let Ok(user) = result else {
-        return Html(loginfail.render_once().unwrap());
+        return Html(loginfail.render_once().unwrap()).into_response();
     };
 
     let verifier = Argon2::default();
@@ -203,15 +204,12 @@ async fn verify_login(
     .unwrap();
 
     let Ok(_) = verify_result else {
-        return Html(loginfail.render_once().unwrap());
+        return Html(loginfail.render_once().unwrap()).into_response();
     };
 
     session.insert(USER_KEY, &login.username).await.unwrap();
 
-    let ctx = LoginSuccessTemplate {
-        username: login.username,
-    };
-    Html(ctx.render_once().unwrap())
+    Redirect::to("/").into_response()
 }
 
 async fn logout(session: Session) -> impl IntoResponse {
@@ -268,6 +266,38 @@ async fn verify_signup(
         };
 
         let ctx = SignUpSuccessTemplate {};
+        Html(ctx.render_once().unwrap())
+    }
+}
+
+async fn avatar() -> impl IntoResponse {
+    let ctx = AvatarTemplate { msg: "" };
+
+    Html(ctx.render_once().unwrap())
+}
+
+async fn change_avatar(
+    State(state): State<SiteState>,
+    mut multipart: Multipart,
+) -> impl IntoResponse {
+    if let Some(field) = multipart.next_field().await.unwrap() {
+        let name = field.name().unwrap().to_string();
+        let data_try = field.bytes().await;
+        let Ok(data) = data_try else {
+            let ctx = AvatarTemplate {
+                msg: "File is too large!",
+            };
+            return Html(ctx.render_once().unwrap());
+        };
+
+        let ctx = AvatarTemplate {
+            msg: &format!("Length of {} is {} bytes\n", name, data.len()),
+        };
+        Html(ctx.render_once().unwrap())
+    } else {
+        let ctx = AvatarTemplate {
+            msg: "Empty request!",
+        };
         Html(ctx.render_once().unwrap())
     }
 }
