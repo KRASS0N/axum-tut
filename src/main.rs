@@ -3,12 +3,12 @@ use argon2::{
     Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
 };
 use axum::{
-    extract::{ConnectInfo, Multipart, State},
+    extract::{ConnectInfo, DefaultBodyLimit, Multipart, State},
     response::{Html, IntoResponse, Redirect},
     routing::{get, post},
     Form, Router,
 };
-use image::{EncodableLayout, ImageReader};
+use image::{imageops::FilterType, EncodableLayout, ImageReader};
 use sailfish::TemplateSimple;
 use serde::{Deserialize, Serialize};
 use sqlx::{
@@ -137,6 +137,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/devlog1", get(devlog1))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(state)
+        .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .layer(session_layer);
 
     axum::serve(
@@ -286,12 +287,14 @@ async fn avatar() -> impl IntoResponse {
     Html(ctx.render_once().unwrap())
 }
 
+#[axum::debug_handler]
 async fn change_avatar(session: Session, mut multipart: Multipart) -> impl IntoResponse {
-    let Some(field) = multipart.next_field().await.unwrap() else {
-        let ctx = AvatarTemplate {
-            msg: "Empty Request",
-        };
-        return Html(ctx.render_once().unwrap());
+    let emptyfile = AvatarTemplate { msg: "Empty file!" };
+    let Ok(result) = multipart.next_field().await else {
+        return Html(emptyfile.render_once().unwrap());
+    };
+    let Some(field) = result else {
+        return Html(emptyfile.render_once().unwrap());
     };
     let data_try = field.bytes().await;
     let Ok(data) = data_try else {
@@ -299,6 +302,9 @@ async fn change_avatar(session: Session, mut multipart: Multipart) -> impl IntoR
             msg: "File is too large!",
         };
         return Html(ctx.render_once().unwrap());
+    };
+    let false = data.is_empty() else {
+        return Html(emptyfile.render_once().unwrap());
     };
 
     let Ok(image) = ImageReader::new(Cursor::new(data))
@@ -312,8 +318,7 @@ async fn change_avatar(session: Session, mut multipart: Multipart) -> impl IntoR
         return Html(ctx.render_once().unwrap());
     };
 
-    let user: User = session.get(USER_KEY).await.unwrap().unwrap_or_default();
-    let avatar_path = get_avatar(&user.0).await;
+    let image = image.resize_to_fill(512, 512, FilterType::Lanczos3);
 
     let webp_bytes = task::spawn_blocking(move || {
         let encoder: Encoder = Encoder::from_image(&image).unwrap();
@@ -323,6 +328,9 @@ async fn change_avatar(session: Session, mut multipart: Multipart) -> impl IntoR
     })
     .await
     .unwrap();
+
+    let user: User = session.get(USER_KEY).await.unwrap().unwrap_or_default();
+    let avatar_path = get_avatar(&user.0).await;
 
     let Ok(_) = write(&avatar_path, webp_bytes) else {
         let ctx = AvatarTemplate {
