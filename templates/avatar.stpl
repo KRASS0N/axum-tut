@@ -6,7 +6,7 @@
 </head>
 <body>
 	<h1>Change Avatar</h1>
-	<h3>The image file must be smaller than 2 MB or else your computer explodes and you die.</h3>
+	<h3>The image file must be smaller than 2 MB or else the connection will reset.</h3>
 	<% if !msg.is_empty() { %>
 		<div class="error">
 			<%= msg %>

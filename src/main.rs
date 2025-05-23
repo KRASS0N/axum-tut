@@ -15,7 +15,13 @@ use sqlx::{
     postgres::{PgPool, PgPoolOptions},
     query,
 };
-use std::{env, fs::write, io::Cursor, net::SocketAddr, process::Command};
+use std::{
+    env,
+    fs::{remove_file, write},
+    io::Cursor,
+    net::SocketAddr,
+    process::Command,
+};
 use time::Duration;
 use tokio::{
     net::TcpListener,
@@ -25,6 +31,7 @@ use tokio::{
 use tower_http::services::ServeDir;
 use tower_sessions::{session_store::ExpiredDeletion, Expiry, Session, SessionManagerLayer};
 use tower_sessions_sqlx_store::PostgresStore;
+use uuid::Uuid;
 use webp::{Encoder, WebPMemory};
 
 #[derive(Clone)]
@@ -87,8 +94,8 @@ const USER_KEY: &str = "username";
 struct Avatar(String);
 const AVATAR_KEY: &str = "avatar";
 
-async fn get_avatar(username: &str) -> String {
-    format!("static/avatars/{}.webp", username)
+async fn get_avatar(uuid: &str) -> String {
+    format!("static/avatars/{}.webp", uuid)
 }
 
 #[tokio::main]
@@ -201,7 +208,7 @@ async fn verify_login(
     };
 
     let result = query!(
-        r#"SELECT Password FROM Users
+        r#"SELECT Password, Avatar FROM Users
         WHERE Username = $1"#,
         login.username
     )
@@ -225,6 +232,16 @@ async fn verify_login(
     };
 
     session.insert(USER_KEY, &login.username).await.unwrap();
+    match user.avatar {
+        Some(avatar) => {
+            let avatar_path = get_avatar(&avatar).await;
+            session.insert(AVATAR_KEY, avatar_path).await.unwrap();
+        }
+        None => session
+            .insert(AVATAR_KEY, "static/default_avatar.webp")
+            .await
+            .unwrap(),
+    };
 
     Redirect::to("/").into_response()
 }
@@ -293,7 +310,11 @@ async fn avatar() -> impl IntoResponse {
     Html(ctx.render_once().unwrap())
 }
 
-async fn change_avatar(session: Session, mut multipart: Multipart) -> impl IntoResponse {
+async fn change_avatar(
+    State(state): State<SiteState>,
+    session: Session,
+    mut multipart: Multipart,
+) -> impl IntoResponse {
     let emptyfile = AvatarTemplate { msg: "Empty file!" };
     let Ok(result) = multipart.next_field().await else {
         return Html(emptyfile.render_once().unwrap());
@@ -336,7 +357,43 @@ async fn change_avatar(session: Session, mut multipart: Multipart) -> impl IntoR
     .unwrap();
 
     let user: User = session.get(USER_KEY).await.unwrap().unwrap_or_default();
-    let avatar_path = get_avatar(&user.0).await;
+    let result = query!(
+        r#"SELECT Avatar FROM Users
+                WHERE Username = $1"#,
+        user.0
+    )
+    .fetch_one(&state.pool)
+    .await;
+
+    let Ok(record) = result else {
+        let ctx = AvatarTemplate {
+            msg: "User does not exist!",
+        };
+        return Html(ctx.render_once().unwrap());
+    };
+
+    let old_avatar = match record.avatar {
+        Some(avatar) => avatar,
+        None => String::new(),
+    };
+
+    let avatar = loop {
+        let avatar = Uuid::new_v4().to_string();
+
+        let result = query!(
+            r#"SELECT Avatar FROM Users
+                WHERE Avatar = $1"#,
+            avatar
+        )
+        .fetch_one(&state.pool)
+        .await;
+
+        let Ok(_) = result else {
+            break avatar;
+        };
+    };
+
+    let avatar_path = get_avatar(&avatar).await;
 
     let Ok(_) = write(&avatar_path, webp_bytes) else {
         let ctx = AvatarTemplate {
@@ -344,6 +401,25 @@ async fn change_avatar(session: Session, mut multipart: Multipart) -> impl IntoR
         };
         return Html(ctx.render_once().unwrap());
     };
+
+    let result = query!(
+        r#"UPDATE Users
+            SET AVATAR = $1
+            WHERE Username = $2"#,
+        avatar,
+        user.0
+    )
+    .execute(&state.pool)
+    .await;
+
+    let Ok(_) = result else {
+        let ctx = AvatarTemplate {
+            msg: "Failed to update database!",
+        };
+        return Html(ctx.render_once().unwrap());
+    };
+
+    let _ = remove_file(get_avatar(&old_avatar).await);
 
     session.insert(AVATAR_KEY, &avatar_path).await.unwrap();
 

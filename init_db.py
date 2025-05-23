@@ -20,7 +20,8 @@ def main():
     cursor.execute(
         """CREATE TABLE IF NOT EXISTS Users (
                      Username varchar(255) NOT NULL UNIQUE,
-                     Password varchar(255) NOT NULL
+                     Password varchar(255) NOT NULL,
+                     Avatar varchar(255)
                      );"""
     )
 
