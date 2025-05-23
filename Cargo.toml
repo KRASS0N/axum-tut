@@ -7,13 +7,14 @@ edition = "2024"
 anyhow = "1.0.98"
 argon2 = "0.5.3"
 axum = { version = "0.8.4", features = ["macros", "multipart"] }
+axum-extra = "0.10.1"
 image = "0.25.6"
 sailfish = "0.9.0"
 serde = "1.0.219"
 sqlx = { version = "0.8.5", features = [ "runtime-tokio", "tls-native-tls", "postgres" ] }
 time = "0.3.41"
 tokio = { version = "1.45.0", features = ["full"] }
-tower-http = { version = "0.6.2", features = ["fs"]}
+tower-http = { version = "0.6.2", features = ["fs"] }
 tower-sessions = "0.14.0"
 tower-sessions-sqlx-store = { version = "0.15.0", features = ["postgres"] }
 webp = "0.3.0"

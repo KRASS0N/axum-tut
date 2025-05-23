@@ -3,7 +3,7 @@ use argon2::{
     Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
 };
 use axum::{
-    extract::{ConnectInfo, DefaultBodyLimit, Multipart, State},
+    extract::{ConnectInfo, Multipart, State},
     response::{Html, IntoResponse, Redirect},
     routing::{get, post},
     Form, Router,
@@ -138,7 +138,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/devlog1", get(devlog1))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(state)
-        .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .layer(session_layer);
 
     axum::serve(
@@ -299,24 +298,16 @@ async fn change_avatar(session: Session, mut multipart: Multipart) -> impl IntoR
     let Ok(result) = multipart.next_field().await else {
         return Html(emptyfile.render_once().unwrap());
     };
-    let Some(mut field) = result else {
+    let Some(field) = result else {
         return Html(emptyfile.render_once().unwrap());
     };
 
-    let mut data: Vec<u8> = Vec::new();
-
-    loop {
-        match field.chunk().await {
-            Ok(Some(chunk)) => data.extend_from_slice(chunk.as_bytes()),
-            Ok(None) => break,
-            Err(_) => {
-                let ctx = AvatarTemplate {
-                    msg: "File is too big!",
-                };
-                return Html(ctx.render_once().unwrap());
-            }
-        }
-    }
+    let Ok(data) = field.bytes().await else {
+        let ctx = AvatarTemplate {
+            msg: "File is too big!",
+        };
+        return Html(ctx.render_once().unwrap());
+    };
 
     let false = data.is_empty() else {
         return Html(emptyfile.render_once().unwrap());
