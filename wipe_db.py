@@ -3,10 +3,15 @@ from urllib.parse import urlparse
 import os
 import psycopg2
 from python_mods.colors import bcolors
+from shutil import rmtree
 
 
 def main():
-    print("Initializing database and related content directories...")
+    keypress = input(bcolors.WARNING + "WARNING: This will wipe the ENTIRE database and all associated files.\n" + bcolors.ENDC + "Is this okay? [y/N]: ")
+    if keypress.lower() != "y":
+        return
+
+    print("Wiping the database...")
 
     db_url = urlparse(os.environ["DATABASE_URL"])
 
@@ -21,18 +26,15 @@ def main():
     cursor = conn.cursor()
 
     cursor.execute(
-        """CREATE TABLE IF NOT EXISTS Users (
-                     Username varchar(255) NOT NULL UNIQUE,
-                     Password varchar(255) NOT NULL,
-                     Avatar varchar(255)
-                     );"""
+        "DROP TABLE IF EXISTS Users;"
     )
 
     conn.commit()
     conn.close()
     cursor.close()
 
-    Path("static/avatars").mkdir(exist_ok=True)
+    rmtree(Path("static/avatars"), ignore_errors=True)
+
 
     print(bcolors.OKGREEN + "Success!" + bcolors.ENDC)
 

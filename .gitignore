@@ -1,2 +1,3 @@
 /target
 /static/avatars
+**/__pycache__/
