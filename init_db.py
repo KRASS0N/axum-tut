@@ -22,9 +22,35 @@ def main():
 
     cursor.execute(
         """CREATE TABLE IF NOT EXISTS Users (
-                     Username varchar(255) NOT NULL UNIQUE,
+                     Username varchar(255) NOT NULL UNIQUE PRIMARY KEY,
                      Password varchar(255) NOT NULL,
                      Avatar varchar(255)
+                     );"""
+    )
+
+    cursor.execute(
+        """CREATE TABLE IF NOT EXISTS Works (
+                     WorkID SERIAL PRIMARY KEY,
+                     Author varchar(255) REFERENCES Users(Username)
+                     ON DELETE SET NULL ON UPDATE CASCADE
+                     );"""
+    )
+
+    cursor.execute(
+        """CREATE TABLE IF NOT EXISTS Chapters (
+                     ChapterID SERIAL PRIMARY KEY,
+                     WorkID INTEGER NOT NULL REFERENCES Works(WorkID)
+                     ON DELETE CASCADE ON UPDATE CASCADE
+                     );"""
+    )
+
+    cursor.execute(
+        """CREATE TABLE IF NOT EXISTS Contributions (
+                     ContribID SERIAL PRIMARY KEY,
+                     ChapterID INTEGER NOT NULL REFERENCES Chapters(ChapterID)
+                     ON DELETE CASCADE ON UPDATE CASCADE,
+                     PrevID INTEGER,
+                     NextID INTEGER
                      );"""
     )
 

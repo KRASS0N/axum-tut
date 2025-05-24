@@ -7,7 +7,12 @@ from shutil import rmtree
 
 
 def main():
-    keypress = input(bcolors.WARNING + "WARNING: This will wipe the ENTIRE database and all associated files.\n" + bcolors.ENDC + "Is this okay? [y/N]: ")
+    keypress = input(
+        bcolors.WARNING
+        + "WARNING: This will wipe the ENTIRE database and all associated files.\n"
+        + bcolors.ENDC
+        + "Is this okay? [y/N]: "
+    )
     if keypress.lower() != "y":
         return
 
@@ -26,8 +31,11 @@ def main():
     cursor = conn.cursor()
 
     cursor.execute(
-        "DROP TABLE IF EXISTS Users;"
+        "DROP TABLE IF EXISTS Users CASCADE;"
         "DROP TABLE IF EXISTS tower_sessions.session;"
+        "DROP TABLE IF EXISTS Works CASCADE;"
+        "DROP TABLE IF EXISTS Chapters CASCADE;"
+        "DROP TABLE IF EXISTS Contributions;"
     )
 
     conn.commit()
@@ -35,7 +43,6 @@ def main():
     cursor.close()
 
     rmtree(Path("static/avatars"), ignore_errors=True)
-
 
     print(bcolors.OKGREEN + "Success!" + bcolors.ENDC)
 
