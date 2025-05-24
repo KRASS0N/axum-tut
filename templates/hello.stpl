@@ -6,8 +6,8 @@
 </head>
 <body>
     <% if !username.is_empty() { %>
+				<img src="<%= avatar %>" width="64" height="64" class="pfp" />
         <h1>Hello, <%= username %>!</h1>
-				<img src="<%= avatar %>" />
     <% } else { %>
         <h1>Deez nuts!</h1>
     <% } %>

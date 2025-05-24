@@ -44,3 +44,6 @@ input[type=text], input[type=password] {
 	color: green;
 	margin-bottom: 1em;
 }
+.pfp {
+	float: right;
+}
