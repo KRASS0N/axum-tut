@@ -27,6 +27,7 @@ def main():
 
     cursor.execute(
         "DROP TABLE IF EXISTS Users;"
+        "DROP TABLE IF EXISTS tower_sessions.session;"
     )
 
     conn.commit()
