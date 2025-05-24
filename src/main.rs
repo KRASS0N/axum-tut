@@ -29,7 +29,9 @@ use tokio::{
     task::{self, AbortHandle},
 };
 use tower_http::services::ServeDir;
-use tower_sessions::{session_store::ExpiredDeletion, Expiry, Session, SessionManagerLayer};
+use tower_sessions::{
+    cookie::Key, session_store::ExpiredDeletion, Expiry, Session, SessionManagerLayer,
+};
 use tower_sessions_sqlx_store::PostgresStore;
 use uuid::Uuid;
 use webp::{Encoder, WebPMemory};
@@ -130,6 +132,8 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let session_layer = SessionManagerLayer::new(session_store)
+        .with_signed(Key::from(b"DEEEEEEZNUTSFDFLKDSJFLSDFJLD0023i9032042)(()$#FJSOIFJFDKJLSDFJ_)#_)RI#(RJ)(#I$R()@)R(FJFJSKDFJ"))
+        .with_private(Key::from(b"YOMAMAFAAAATYOMAMATIFIFDEIODJGOSJGOJ993u493(R)W@U#)#@()RRWEKFJSKJFIOSD)RI#@(IR)ROIWERFJ"))
         .with_expiry(Expiry::OnInactivity(Duration::hours(1)));
 
     let site = Router::new()
